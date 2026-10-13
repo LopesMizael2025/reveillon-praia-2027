@@ -262,32 +262,75 @@ function floorText(txt, px, py, width, color = '#d4af37', rot = 0, y = 0.07) {
 }
 
 // ---------- pisos ----------
+// O gramado da entrada é um terreno elevado (+0,9 m); as escadas curvas (quarto de elipse
+// com centro em 490,1925 na prancha) descem dele até o foyer do evento, passando pelo pórtico.
+const HIGH = 0.9;
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), M.ground);
 ground.rotation.x = -Math.PI / 2; ground.position.y = -0.02; ground.receiveShadow = true;
 scene.add(ground);
+M.concrete = new THREE.MeshStandardMaterial({ color: '#a7a49d', roughness: 0.85 });
+M.steel = new THREE.MeshStandardMaterial({ color: '#cfd3d8', roughness: 0.25, metalness: 0.9 });
+
+const STAIR = { cx: 490, cy: 1925, rx: 210, ry: 310, sMin: 0.7, steps: 6 };
+const ell = (s, th) => [STAIR.cx + STAIR.rx * s * Math.sin(th), STAIR.cy - STAIR.ry * s * Math.cos(th)];
+const arcPx = (s, from, to, n = 32) => Array.from({ length: n + 1 }, (_, i) => ell(s, from + (to - from) * i / n));
+function prism(ptsPx, y0, y1, mats) {
+  const sh = new THREE.Shape(ptsPx.map(([px, py]) => { const [x, z] = W(px, py); return new THREE.Vector2(x, -z); }));
+  const geo = new THREE.ExtrudeGeometry(sh, { depth: y1 - y0, bevelEnabled: false });
+  geo.rotateX(-Math.PI / 2); geo.translate(0, y0, 0);
+  const m = new THREE.Mesh(geo, mats); m.receiveShadow = true; m.castShadow = true;
+  scene.add(m);
+  return m;
+}
+const Q = Math.PI / 2;
 slab(80, 0, 1250, 1945, 0.02, M.grass, -0.01, false);       // terreno
-slab(92, 310, 1235, 1935, 0.03, M.foyer, 0, false);          // área do evento
+// foyer do evento
+slab(92, 310, 1235, 1615, 0.03, M.foyer, 0, false);
+prism([[490, 1615], [1235, 1615], [1235, 1935], [700, 1935], ...arcPx(1, Q, 0)], 0, 0.03, [M.foyer, M.concrete]);
+// gramado elevado da entrada
+prism([[80, 1615], [490, 1615], [490, STAIR.cy - STAIR.ry * STAIR.sMin], ...arcPx(STAIR.sMin, 0, Q),
+       [STAIR.cx + STAIR.rx * STAIR.sMin, 1945], [80, 1945]], 0, HIGH, [M.grass, M.concrete]);
 slab(128, 435, 1105, 1450, 0.04, M.hall, 0, false);          // salão principal
 slab(947, 330, 1235, 1150, 0.05, M.deck, 0, false);          // deck lateral
 slab(128, 372, 945, 435, 0.05, M.pista, 0, false);           // pista frente palco
-slab(220, 1615, 1105, 1935, 0.035, M.grass, 0, false);       // jardim externo
+slab(720, 1615, 1105, 1935, 0.035, M.grass, 0, false);       // jardim do setor F
 slab(1120, 20, 1235, 320, 0.03, M.foyer, 0, false);          // faixa dos quiosques
 
 // degraus entre salão e deck
 for (let i = 0; i < 8; i++) slab(947, 340 + i * 55, 1105, 340 + i * 55 + 4, 0.06, M.white, 0, false);
 
-// caminho curvo da entrada
+// escadas curvas da entrada
 {
-  const v = (px, py) => { const [x, z] = W(px, py); return new THREE.Vector3(x, 0.05, z); };
-  const pts = new THREE.QuadraticBezierCurve3(v(470, 1620), v(660, 1700), v(700, 1935)).getPoints(40);
-  for (let i = 1; i < pts.length; i++) {
-    const a = pts[i - 1], p = pts[i];
-    const seg = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.05, a.distanceTo(p) + 0.05), M.white);
-    seg.position.copy(a).add(p).multiplyScalar(0.5);
-    seg.lookAt(p.x, seg.position.y, p.z);
-    seg.receiveShadow = true;
-    scene.add(seg);
+  const ds = (1 - STAIR.sMin) / STAIR.steps, dh = HIGH / STAIR.steps;
+  for (let i = 0; i < STAIR.steps; i++) {
+    const so = 1 - i * ds, si = 1 - (i + 1) * ds;
+    prism([...arcPx(so, 0, Q), ...arcPx(si, Q, 0)], 0, (i + 1) * dh, [M.concrete, M.concrete]);
   }
+  // corrimãos de inox descendo as escadas
+  const v3 = (px, py, y) => { const [x, z] = W(px, py); return new THREE.Vector3(x, y, z); };
+  const bar = (a, b, r = 0.03) => {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, a.distanceTo(b), 8), M.steel);
+    m.position.copy(a).add(b).multiplyScalar(0.5);
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
+    m.castShadow = true; scene.add(m);
+  };
+  for (const th of [0.2, 0.55, 0.95, 1.35]) {
+    const a = v3(...ell(1.0, th), 0.9), b = v3(...ell(STAIR.sMin - 0.03, th), HIGH + 0.9);
+    bar(a, b);
+    bar(a, v3(...ell(1.0, th), 0)); bar(b, v3(...ell(STAIR.sMin - 0.03, th), HIGH));
+  }
+}
+
+// pórtico de entrada Praia Hall
+{
+  const [x0, z] = W(385, 1607), [x1] = W(585, 1607);
+  for (const x of [x0, x1]) {
+    const p = new THREE.Mesh(new THREE.BoxGeometry(0.35, 3.6, 0.35), M.black);
+    p.position.set(x, 1.8, z); p.castShadow = true; scene.add(p);
+  }
+  const face = () => new THREE.MeshStandardMaterial({ map: textTexture('PRAIA HALL', { w: 1024, h: 160, bg: '#141416', color: '#d4af37', size: 110 }) });
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0 + 0.6, 0.8, 0.35), [M.black, M.black, M.black, M.black, face(), face()]);
+  beam.position.set((x0 + x1) / 2, 3.6, z); beam.castShadow = true; scene.add(beam);
 }
 
 // ---------- palco ----------
@@ -394,15 +437,15 @@ function containerBar(px0, py0, px1, py1, nWin = 2) {
   g.position.set(cx, 0, cz);
   scene.add(g);
 }
-containerBar(1133, 1625, 1227, 1922, 4);   // contêiner único ao longo da entrada
-slab(1155, 1250, 1225, 1440, 2.6, M.white);          // apoio lateral
+for (const [a, b] of [[1625,1720],[1722,1820],[1826,1922]]) kiosk(1133, a, 1227, b);
+containerBar(1155, 1250, 1225, 1440, 3);   // contêiner na lateral do salão (bloco marcado na prancha)
 
 // ---------- textos no piso ----------
 floorText('PALCO', 575, 290, 9, '#f3dd8a', 0, 1.47);
 floorText('PISTA', 400, 405, 5, '#f3dd8a');
 floorText('BISTRÔS PRAIA', 580, 765, 8, '#8a6d1d');
 floorText('BAR', 586, 1080, 3.5, '#8a6d1d');
-floorText('ENTRADA', 560, 1800, 7, '#ffffff', -0.5);
+floorText('ENTRADA', 290, 1790, 7, '#ffffff', 0, HIGH + 0.05);
 floorText('QUIOSQUES', 1060, 250, 6, '#ffffff', Math.PI / 2);
 floorText('QUIOSQUES', 1070, 1770, 6, '#ffffff', Math.PI / 2);
 
@@ -649,7 +692,7 @@ const VIEWS = {
   iso:   { t: [0, 0, 2],  p: [-38, 52, 58] },
   top:   { t: [0, 0, 0],  p: [0, 105, 0.01] },
   stage: { t: [0, 0, 5],  p: [-2, 14, -30] },
-  entry: { t: [0, 0, -4], p: [-6, 12, 34] },
+  entry: { t: [-2, 0, 14], p: [-16, 8, 46] },
 };
 let anim = null;
 function flyTo(target, pos, ms = 900) {
