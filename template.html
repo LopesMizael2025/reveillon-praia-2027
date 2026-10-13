@@ -263,7 +263,7 @@ function floorText(txt, px, py, width, color = '#d4af37', rot = 0, y = 0.07) {
 
 // ---------- pisos ----------
 // O gramado da entrada é um terreno elevado (+0,9 m); as escadas curvas (quarto de elipse
-// com centro em 490,1925 na prancha) descem dele até o foyer do evento, passando pelo pórtico.
+// com centro em 490,1925 na prancha) descem dele até o foyer do evento.
 const HIGH = 0.9;
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), M.ground);
 ground.rotation.x = -Math.PI / 2; ground.position.y = -0.02; ground.receiveShadow = true;
@@ -319,18 +319,6 @@ for (let i = 0; i < 8; i++) slab(947, 340 + i * 55, 1105, 340 + i * 55 + 4, 0.06
     bar(a, b);
     bar(a, v3(...ell(1.0, th), 0)); bar(b, v3(...ell(STAIR.sMin - 0.03, th), HIGH));
   }
-}
-
-// pórtico de entrada Praia Hall
-{
-  const [x0, z] = W(385, 1607), [x1] = W(585, 1607);
-  for (const x of [x0, x1]) {
-    const p = new THREE.Mesh(new THREE.BoxGeometry(0.35, 3.6, 0.35), M.black);
-    p.position.set(x, 1.8, z); p.castShadow = true; scene.add(p);
-  }
-  const face = () => new THREE.MeshStandardMaterial({ map: textTexture('PRAIA HALL', { w: 1024, h: 160, bg: '#141416', color: '#d4af37', size: 110 }) });
-  const beam = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0 + 0.6, 0.8, 0.35), [M.black, M.black, M.black, M.black, face(), face()]);
-  beam.position.set((x0 + x1) / 2, 3.6, z); beam.castShadow = true; scene.add(beam);
 }
 
 // ---------- palco ----------
