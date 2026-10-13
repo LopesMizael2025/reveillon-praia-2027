@@ -1,0 +1,754 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Réveillon Praia 2027 — Mapa de Mesas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b1020; --panel: rgba(12, 18, 36, .92); --line: rgba(212, 175, 55, .28);
+    --gold: #d4af37; --gold-2: #f3dd8a; --text: #f4f1e8; --muted: #a9aec0;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: Montserrat, system-ui, sans-serif; overflow: hidden; }
+  #app { position: fixed; inset: 0; }
+  #app canvas { display: block; }
+  aside {
+    position: fixed; top: 16px; left: 16px; bottom: 16px; width: 300px; overflow-y: auto;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px;
+    backdrop-filter: blur(8px);
+  }
+  h1 { font-size: 13px; letter-spacing: .22em; color: var(--gold); margin: 0 0 2px; font-weight: 600; }
+  h2 { font-size: 26px; margin: 0 0 4px; font-weight: 800; }
+  .sub { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
+  .sec-title { font-size: 11px; letter-spacing: .18em; color: var(--gold); margin: 18px 0 8px; font-weight: 600; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .stat { background: rgba(255,255,255,.04); border-radius: 8px; padding: 8px 6px; text-align: center; }
+  .stat b { display: block; font-size: 20px; }
+  .stat span { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+  .legend { list-style: none; padding: 0; margin: 0; }
+  .legend li { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px;
+    cursor: pointer; font-size: 13px; }
+  .legend li:hover, .legend li.on { background: rgba(255,255,255,.07); }
+  .legend i { width: 14px; height: 14px; border-radius: 50%; flex: none; }
+  .legend small { margin-left: auto; color: var(--muted); font-size: 11px; white-space: nowrap; }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; }
+  button, input {
+    font: inherit; font-size: 12px; color: var(--text); background: rgba(255,255,255,.06);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; cursor: pointer;
+  }
+  button:hover { border-color: var(--gold); }
+  button.primary { background: var(--gold); color: #1a1406; border-color: var(--gold); font-weight: 600; }
+  input { cursor: text; flex: 1; min-width: 0; }
+  label.chk { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-top: 8px; cursor: pointer; }
+  label.chk input { flex: none; }
+  #info {
+    position: fixed; right: 16px; bottom: 16px; width: 280px; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: none;
+  }
+  #info .num { font-size: 40px; font-weight: 800; line-height: 1; }
+  #info .meta { color: var(--muted); font-size: 12px; margin: 6px 0 12px; }
+  #info .status-btns button.sel { outline: 2px solid var(--gold); }
+  #hint { position: fixed; right: 16px; top: 16px; font-size: 11px; color: var(--muted);
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; }
+  @media (max-width: 720px) {
+    aside { top: auto; bottom: 0; left: 0; right: 0; width: auto; max-height: 42vh; border-radius: 14px 14px 0 0; }
+    #info { left: 16px; right: 16px; width: auto; bottom: calc(42vh + 12px); }
+    #hint { display: none; }
+  }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="app"></div>
+
+<aside>
+  <h1>PRAIA HALL · PRAIA CLUBE</h1>
+  <h2>Réveillon 2027</h2>
+  <div class="sub">Mapa de mesas para venda · projeto Leo Bione</div>
+
+  <div class="stats">
+    <div class="stat"><b id="sDisp">–</b><span>Livres</span></div>
+    <div class="stat"><b id="sRes">–</b><span>Reserv.</span></div>
+    <div class="stat"><b id="sVend">–</b><span>Vendidas</span></div>
+  </div>
+  <div class="sub" id="sLug" style="margin-top:8px"></div>
+
+  <div class="sec-title">BUSCAR</div>
+  <div class="row">
+    <input id="q" placeholder="Mesa 57, L3, P2…">
+    <button class="primary" id="go">Ir</button>
+  </div>
+
+  <div class="sec-title">SETORES</div>
+  <ul class="legend" id="legend"></ul>
+
+  <div class="sec-title">VISTAS</div>
+  <div class="row">
+    <button data-view="iso">Isométrica</button>
+    <button data-view="top">Planta</button>
+    <button data-view="stage">Do palco</button>
+    <button data-view="entry">Da entrada</button>
+  </div>
+  <label class="chk"><input type="checkbox" id="tLabels" checked> Mostrar números</label>
+  <label class="chk"><input type="checkbox" id="tFree"> Destacar só as livres</label>
+
+  <div class="sec-title">EXPORTAR</div>
+  <div class="row">
+    <button id="ePlan">Planta numerada (PNG)</button>
+    <button id="eView">Vista atual (PNG)</button>
+    <button id="eCsv">Lista (CSV)</button>
+  </div>
+  <div class="sub" style="margin-top:10px">O status das mesas fica salvo neste navegador.</div>
+  <div class="row"><button id="reset">Zerar status</button></div>
+</aside>
+
+<div id="hint">Arraste para girar · botão direito move · roda aproxima · clique numa mesa</div>
+
+<div id="info">
+  <div class="num" id="iNum"></div>
+  <div class="meta" id="iMeta"></div>
+  <div class="row status-btns">
+    <button data-st="livre">Livre</button>
+    <button data-st="reservada">Reservada</button>
+    <button data-st="vendida">Vendida</button>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+// ---------- planta (pixels da prancha do Leo Bione) -> metros ----------
+const TABLES_PX = /*TABLES*/;
+const S = 1 / 28, CX = 660, CY = 1000;
+const W = (px, py) => [(px - CX) * S, (py - CY) * S];
+
+const SECTORS = {
+  A: { nome: 'Setor A · Palco esquerda', cor: '#d4a017' },
+  B: { nome: 'Setor B · Palco direita',  cor: '#e05780' },
+  C: { nome: 'Setor C · Deck lateral',   cor: '#3d7dd8' },
+  D: { nome: 'Setor D · Salão esquerda', cor: '#2a9d8f' },
+  E: { nome: 'Setor E · Salão central',  cor: '#8e5cc7' },
+  F: { nome: 'Setor F · Jardim entrada', cor: '#6d8f3a' },
+  L: { nome: 'Lounges centrais',         cor: '#1c1c1c' },
+  P: { nome: 'Lounges pufes',            cor: '#1f3b73' },
+};
+const ST_COR = { reservada: '#ff9f1c', vendida: '#6b6b6b' };
+
+// ---------- itens vendáveis ----------
+const items = [];
+TABLES_PX.forEach(([blk, px, py], i) => {
+  const [x, z] = W(px, py);
+  items.push({ id: String(i + 1), label: String(i + 1), tipo: 'Mesa', sector: blk, lugares: 4, x, z });
+});
+const LOUNGES = [[570,1160,-1],[612,1160,1],[570,1210,-1],[612,1210,1],[565,1297,-1],[608,1297,1],[565,1347,-1],[608,1347,1]];
+LOUNGES.forEach(([px, py, dir], i) => {
+  const [x, z] = W(px, py);
+  items.push({ id: 'L' + (i + 1), label: 'L' + (i + 1), tipo: 'Lounge central', sector: 'L', lugares: 5, x, z, dir });
+});
+const PUFES = [[585,1483,-1],[619,1483,1],[343,1565,-1],[377,1565,1],[780,1905,-1],[813,1905,1],[963,1905,-1],[996,1905,1]];
+PUFES.forEach(([px, py, dir], i) => {
+  const [x, z] = W(px, py);
+  items.push({ id: 'P' + (i + 1), label: 'P' + (i + 1), tipo: 'Lounge pufes', sector: 'P', lugares: 5, x, z, dir });
+});
+const byId = Object.fromEntries(items.map(it => [it.id.toUpperCase(), it]));
+
+const KEY = 'reveillon2027-status-v5';
+let status = {};
+try { status = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { status = {}; }
+const saveStatus = () => { try { localStorage.setItem(KEY, JSON.stringify(status)); } catch (e) {} };
+const stOf = it => status[it.id] || 'livre';
+
+// ---------- renderer / cena ----------
+const app = document.getElementById('app');
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+app.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#0b1020');
+scene.fog = new THREE.Fog('#0b1020', 120, 220);
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.5, 600);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.maxPolarAngle = Math.PI * 0.49;
+controls.minDistance = 6; controls.maxDistance = 180;
+
+scene.add(new THREE.HemisphereLight('#fff6e0', '#2a2f45', 0.6));
+const sun = new THREE.DirectionalLight('#fff3dc', 1.6);
+sun.position.set(-25, 45, -20);
+sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096);
+Object.assign(sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, near: 1, far: 140 });
+sun.shadow.bias = -0.0004;
+scene.add(sun);
+const fill = new THREE.DirectionalLight('#a9c1ff', 0.35);
+fill.position.set(30, 25, 40);
+scene.add(fill);
+
+// ---------- materiais ----------
+const M = {
+  ground: new THREE.MeshStandardMaterial({ color: '#2b3040', roughness: 1 }),
+  hall:   new THREE.MeshStandardMaterial({ color: '#e9e2d3', roughness: 0.85 }),
+  deck:   new THREE.MeshStandardMaterial({ color: '#b98d5f', roughness: 0.8 }),
+  foyer:  new THREE.MeshStandardMaterial({ color: '#d8d2c6', roughness: 0.9 }),
+  grass:  new THREE.MeshStandardMaterial({ color: '#4f7a3a', roughness: 1 }),
+  pista:  new THREE.MeshStandardMaterial({ color: '#16161c', roughness: 0.25, metalness: 0.3 }),
+  stage:  new THREE.MeshStandardMaterial({ color: '#111116', roughness: 0.5 }),
+  gold:   new THREE.MeshStandardMaterial({ color: '#d4af37', roughness: 0.32, metalness: 0.85 }),
+  white:  new THREE.MeshStandardMaterial({ color: '#fbfaf6', roughness: 0.7 }),
+  cloth:  new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.9 }),
+  black:  new THREE.MeshStandardMaterial({ color: '#1a1a1e', roughness: 0.6 }),
+  leaf:   new THREE.MeshStandardMaterial({ color: '#3f8a46', roughness: 0.9 }),
+  trunk:  new THREE.MeshStandardMaterial({ color: '#6b4a2b', roughness: 1 }),
+  tent:   new THREE.MeshStandardMaterial({ color: '#fdfcf7', roughness: 0.8, side: THREE.DoubleSide }),
+  sofa:   new THREE.MeshStandardMaterial({ color: '#f1ece2', roughness: 0.95 }),
+};
+
+function slab(px0, py0, px1, py1, h, mat, y0 = 0, cast = true) {
+  const [x0, z0] = W(px0, py0), [x1, z1] = W(px1, py1);
+  const m = new THREE.Mesh(new THREE.BoxGeometry(Math.abs(x1 - x0), h, Math.abs(z1 - z0)), mat);
+  m.position.set((x0 + x1) / 2, y0 + h / 2, (z0 + z1) / 2);
+  m.castShadow = cast; m.receiveShadow = true;
+  scene.add(m);
+  return m;
+}
+
+function textTexture(lines, { w = 1024, h = 256, color = '#d4af37', bg = null, font = 800, size = 140 } = {}) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  if (bg) { g.fillStyle = bg; g.fillRect(0, 0, w, h); }
+  g.fillStyle = color; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const arr = Array.isArray(lines) ? lines : [lines];
+  arr.forEach((ln, i) => {
+    const sz = typeof ln === 'object' ? ln.size : size;
+    const t = typeof ln === 'object' ? ln.t : ln;
+    let fs = sz;
+    g.font = `${font} ${fs}px Montserrat, sans-serif`;
+    while (g.measureText(t).width > w * 0.94 && fs > 10) { fs -= 4; g.font = `${font} ${fs}px Montserrat, sans-serif`; }
+    g.fillText(t, w / 2, h * (i + 0.5) / arr.length);
+  });
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+  return tex;
+}
+
+function floorText(txt, px, py, width, color = '#d4af37', rot = 0, y = 0.07) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(width, width / 4),
+    new THREE.MeshBasicMaterial({ map: textTexture(txt, { color }), transparent: true, depthWrite: false }));
+  const [x, z] = W(px, py);
+  m.rotation.set(-Math.PI / 2, 0, rot);
+  m.position.set(x, y, z);
+  scene.add(m);
+}
+
+// ---------- pisos ----------
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(260, 260), M.ground);
+ground.rotation.x = -Math.PI / 2; ground.position.y = -0.02; ground.receiveShadow = true;
+scene.add(ground);
+slab(80, 0, 1250, 1945, 0.02, M.grass, -0.01, false);       // terreno
+slab(92, 310, 1235, 1935, 0.03, M.foyer, 0, false);          // área do evento
+slab(128, 435, 1105, 1450, 0.04, M.hall, 0, false);          // salão principal
+slab(947, 330, 1235, 1150, 0.05, M.deck, 0, false);          // deck lateral
+slab(128, 372, 945, 435, 0.05, M.pista, 0, false);           // pista frente palco
+slab(220, 1615, 1105, 1935, 0.035, M.grass, 0, false);       // jardim externo
+slab(1120, 20, 1235, 320, 0.03, M.foyer, 0, false);          // faixa dos quiosques
+
+// degraus entre salão e deck
+for (let i = 0; i < 8; i++) slab(947, 340 + i * 55, 1105, 340 + i * 55 + 4, 0.06, M.white, 0, false);
+
+// caminho curvo da entrada
+{
+  const v = (px, py) => { const [x, z] = W(px, py); return new THREE.Vector3(x, 0.05, z); };
+  const pts = new THREE.QuadraticBezierCurve3(v(470, 1620), v(660, 1700), v(700, 1935)).getPoints(40);
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], p = pts[i];
+    const seg = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.05, a.distanceTo(p) + 0.05), M.white);
+    seg.position.copy(a).add(p).multiplyScalar(0.5);
+    seg.lookAt(p.x, seg.position.y, p.z);
+    seg.receiveShadow = true;
+    scene.add(seg);
+  }
+}
+
+// ---------- palco ----------
+slab(340, 160, 810, 372, 1.4, M.stage);
+slab(340, 368, 810, 372, 0.12, M.gold, 1.4);
+{
+  const [x0] = W(360, 0), [x1] = W(790, 0), [, z] = W(0, 172);
+  const scr = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, 5.2),
+    new THREE.MeshBasicMaterial({ map: textTexture([{ t: 'FELIZ', size: 70 }, { t: '2027', size: 200 }], { w: 1024, h: 384, bg: '#07070c', color: '#f3dd8a' }) }));
+  scr.position.set((x0 + x1) / 2, 1.4 + 0.6 + 2.6, z);
+  scene.add(scr);
+  slab(355, 164, 795, 168, 6.6, M.black, 1.4);
+  for (const px of [330, 820]) {             // line arrays
+    const [lx, lz] = W(px, 300);
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.8, 3.2, 0.8), M.black);
+    box.position.set(lx, 4.8, lz); box.castShadow = true; scene.add(box);
+  }
+}
+
+// ---------- pilares ----------
+for (const [px, py] of [[128,435],[947,435],[128,805],[947,805],[135,1180]]) {
+  const [x, z] = W(px, py);
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 7, 20), M.white);
+  col.position.set(x, 3.5, z); col.castShadow = true; scene.add(col);
+}
+
+// ---------- bar + jardim ----------
+for (const r of [[523,816,648,836],[525,1027,650,1047],[501,857,522,1045],[652,857,673,1045]]) {
+  slab(...r, 1.1, M.white);
+  const [x0, z0] = W(r[0], r[1]), [x1, z1] = W(r[2], r[3]);
+  const top = new THREE.Mesh(new THREE.BoxGeometry(Math.abs(x1 - x0) + 0.1, 0.06, Math.abs(z1 - z0) + 0.1), M.gold);
+  top.position.set((x0 + x1) / 2, 1.13, (z0 + z1) / 2); scene.add(top);
+}
+slab(555, 870, 618, 997, 0.45, M.grass);
+function tree(px, py, h = 3.5, r = 1.0) {
+  const [x, z] = W(px, py);
+  const t = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, h, 8), M.trunk);
+  t.position.set(x, h / 2, z); t.castShadow = true; scene.add(t);
+  const c = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), M.leaf);
+  c.position.set(x, h + r * 0.6, z); c.castShadow = true; scene.add(c);
+}
+tree(586, 900, 2.6, 0.8); tree(586, 965, 3.1, 0.9);
+tree(1062, 392, 3.2, 1.3);
+
+// ---------- backdrop ----------
+{
+  const [x0, z] = W(527, 1520), [x1] = W(680, 1520);
+  const face = () => new THREE.MeshStandardMaterial({ map: textTexture([{ t: 'RÉVEILLON PRAIA', size: 90 }, { t: '2027', size: 120 }], { w: 1024, h: 384, bg: '#fbfaf6', color: '#b8932a' }) });
+  const bd = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, 2.8, 0.12), [M.white, M.white, M.white, M.white, face(), face()]);
+  bd.position.set((x0 + x1) / 2, 1.4, z); bd.castShadow = true; scene.add(bd);
+}
+
+// ---------- quiosques ----------
+function kiosk(px0, py0, px1, py1) {
+  const [x0, z0] = W(px0, py0), [x1, z1] = W(px1, py1);
+  const w = Math.abs(x1 - x0) - 0.2, d = Math.abs(z1 - z0) - 0.2;
+  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  const base = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.1, d), M.white);
+  base.position.set(cx - w / 2 + 0.3, 0.55, cz); base.castShadow = true; scene.add(base);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.6, 6), M.gold);
+    p.position.set(cx + sx * w / 2.1, 1.3, cz + sz * d / 2.1); scene.add(p);
+  }
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(Math.max(w, d) * 0.72, 1.4, 4, 1, true), M.tent);
+  roof.rotation.y = Math.PI / 4; roof.position.set(cx, 3.3, cz); roof.castShadow = true; scene.add(roof);
+}
+for (const [a, b] of [[28,122],[122,216],[216,310]]) kiosk(1130, a, 1222, b);
+// contêineres-bar de metal preto da entrada (chapa ondulada, janelas de atendimento)
+function corrugatedTexture() {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 64;
+  const g = c.getContext('2d');
+  for (let x = 0; x < 512; x++) {
+    const v = 22 + Math.round(10 * Math.sin(x / 512 * Math.PI * 2 * 24));
+    g.fillStyle = `rgb(${v},${v},${v + 2})`; g.fillRect(x, 0, 1, 64);
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
+M.container = new THREE.MeshStandardMaterial({ map: corrugatedTexture(), roughness: 0.45, metalness: 0.6 });
+M.blackMetal = new THREE.MeshStandardMaterial({ color: '#141416', roughness: 0.4, metalness: 0.7 });
+M.inside = new THREE.MeshStandardMaterial({ color: '#050506', roughness: 1 });
+function containerBar(px0, py0, px1, py1, nWin = 2) {
+  const [x0, z0] = W(px0, py0), [x1, z1] = W(px1, py1);
+  const w = Math.abs(x1 - x0) - 0.6, d = Math.abs(z1 - z0) - 0.3;   // w: profundidade (x), d: comprimento (z)
+  const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, H = 2.5;
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(w, H, d), M.container);
+  body.position.y = H / 2; g.add(body);
+  const top = new THREE.Mesh(new THREE.BoxGeometry(w + 0.06, 0.05, d + 0.06), M.blackMetal);
+  top.position.y = H + 0.025; g.add(top);
+  // janelas de atendimento voltadas para o evento (-x)
+  const ww = d / nWin - 0.35;
+  for (let i = 0; i < nWin; i++) {
+    const wz = -d / 2 + (i + 0.5) * d / nWin;
+    const hole = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.95, ww), M.inside);
+    hole.position.set(-w / 2 - 0.02, 1.55, wz); g.add(hole);
+    const shelf = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.05, ww + 0.1), M.blackMetal);
+    shelf.position.set(-w / 2 - 0.2, 1.08, wz); g.add(shelf);
+  }
+  const sign = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.22, d * 0.4), M.gold);
+  sign.position.set(-w / 2 - 0.03, 2.22, 0); g.add(sign);
+  g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  g.position.set(cx, 0, cz);
+  scene.add(g);
+}
+containerBar(1133, 1625, 1227, 1922, 4);   // contêiner único ao longo da entrada
+slab(1155, 1250, 1225, 1440, 2.6, M.white);          // apoio lateral
+
+// ---------- textos no piso ----------
+floorText('PALCO', 575, 290, 9, '#f3dd8a', 0, 1.47);
+floorText('PISTA', 400, 405, 5, '#f3dd8a');
+floorText('BISTRÔS PRAIA', 580, 765, 8, '#8a6d1d');
+floorText('BAR', 586, 1080, 3.5, '#8a6d1d');
+floorText('ENTRADA', 560, 1800, 7, '#ffffff', -0.5);
+floorText('QUIOSQUES', 1060, 250, 6, '#ffffff', Math.PI / 2);
+floorText('QUIOSQUES', 1070, 1770, 6, '#ffffff', Math.PI / 2);
+
+// ---------- cadeira e banqueta (geometria única) ----------
+const chairGeo = (() => {
+  const parts = [];
+  const seat = new THREE.BoxGeometry(0.42, 0.05, 0.42); seat.translate(0, 0.46, 0); parts.push(seat);
+  const back = new THREE.BoxGeometry(0.42, 0.42, 0.04); back.translate(0, 0.7, -0.2); parts.push(back);
+  for (const sx of [-0.18, 0.18]) for (const sz of [-0.18, 0.18]) {
+    const l = new THREE.CylinderGeometry(0.018, 0.018, 0.46, 6); l.translate(sx, 0.23, sz); parts.push(l);
+  }
+  return mergeGeometries(parts.map(p => p.toNonIndexed()));
+})();
+const stoolGeo = (() => {
+  const s = new THREE.CylinderGeometry(0.19, 0.19, 0.05, 16); s.translate(0, 0.76, 0);
+  const l = new THREE.CylinderGeometry(0.03, 0.05, 0.76, 8); l.translate(0, 0.38, 0);
+  return mergeGeometries([s.toNonIndexed(), l.toNonIndexed()]);
+})();
+
+const chairs = [], stools = [];
+const dummy = new THREE.Object3D();
+function chairsAround(x, z, r, angles) {
+  for (const a of angles) {
+    const cx = x + Math.cos(a) * r, cz = z + Math.sin(a) * r;
+    chairs.push({ x: cx, z: cz, ry: Math.atan2(x - cx, z - cz) });
+  }
+}
+
+// ---------- mesas (instanced) ----------
+const tablesOnly = items.filter(it => it.tipo === 'Mesa');
+const tableGeo = new THREE.CylinderGeometry(0.56, 0.66, 0.76, 32); tableGeo.translate(0, 0.38, 0);
+const tablesMesh = new THREE.InstancedMesh(tableGeo, M.cloth, tablesOnly.length);
+tablesMesh.castShadow = true; tablesMesh.receiveShadow = true;
+const ringGeo = new THREE.RingGeometry(0.98, 1.1, 40); ringGeo.rotateX(-Math.PI / 2);
+const ringsMesh = new THREE.InstancedMesh(ringGeo, new THREE.MeshBasicMaterial({ color: '#ffffff' }), tablesOnly.length);
+const vaseGeo = new THREE.CylinderGeometry(0.05, 0.09, 0.32, 12); vaseGeo.translate(0, 0.92, 0);
+const vasesMesh = new THREE.InstancedMesh(vaseGeo, M.gold, tablesOnly.length);
+tablesOnly.forEach((it, i) => {
+  dummy.position.set(it.x, 0, it.z); dummy.rotation.set(0, 0, 0); dummy.updateMatrix();
+  tablesMesh.setMatrixAt(i, dummy.matrix);
+  vasesMesh.setMatrixAt(i, dummy.matrix);
+  dummy.position.y = 0.065; dummy.updateMatrix();
+  ringsMesh.setMatrixAt(i, dummy.matrix);
+  it.instance = i;
+  chairsAround(it.x, it.z, 0.88, [Math.PI / 4, 3 * Math.PI / 4, 5 * Math.PI / 4, 7 * Math.PI / 4]);
+});
+scene.add(tablesMesh, ringsMesh, vasesMesh);
+
+// ---------- bistrôs (não entram na venda) ----------
+for (const [px, py] of [[505,581],[505,640],[505,704],[654,581],[654,640],[654,704]]) {
+  const [x, z] = W(px, py);
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.04, 24), M.white);
+  top.position.set(x, 1.1, z); top.castShadow = true; scene.add(top);
+  const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.22, 1.1, 12), M.gold);
+  leg.position.set(x, 0.55, z); scene.add(leg);
+  for (let k = 0; k < 4; k++) {
+    const a = k * Math.PI / 2 + Math.PI / 4;
+    stools.push({ x: x + Math.cos(a) * 0.7, z: z + Math.sin(a) * 0.7 });
+  }
+}
+
+// ---------- lounges ----------
+const loungeGroups = {};
+function sofa(it) {
+  const g = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.42, 1.6), M.sofa); base.position.y = 0.21;
+  const back = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.45, 1.6), M.sofa); back.position.set(-it.dir * 0.32, 0.6, 0);
+  const trim = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.04, 1.64), M.gold); trim.position.y = 0.02;
+  g.add(base, back, trim);
+  const tx = it.dir * 1.3;
+  const tbl = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.05, 24), M.gold); tbl.position.set(tx, 0.48, 0);
+  const tleg = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.46, 8), M.gold); tleg.position.set(tx, 0.23, 0);
+  g.add(tbl, tleg);
+  for (const sz of [-0.62, 0.62]) {
+    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.42, 20), M.sofa);
+    p.position.set(tx + it.dir * 0.45, 0.21, sz); g.add(p);
+  }
+  g.position.set(it.x, 0, it.z);
+  return g;
+}
+function pufe(it) {
+  const g = new THREE.Group();
+  const p = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.42, 1.0), M.sofa); p.position.y = 0.21;
+  const trim = new THREE.Mesh(new THREE.BoxGeometry(1.03, 0.04, 1.03), M.gold); trim.position.y = 0.02;
+  const tx = it.dir * 1.1;
+  const tbl = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.04, 20), M.gold); tbl.position.set(tx, 0.7, 0);
+  const tleg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.12, 0.7, 8), M.gold); tleg.position.set(tx, 0.35, 0);
+  g.add(p, trim, tbl, tleg);
+  g.position.set(it.x, 0, it.z);
+  chairsAround(it.x + tx, it.z, 0.62, it.dir > 0 ? [-Math.PI / 4, Math.PI / 4] : [3 * Math.PI / 4, 5 * Math.PI / 4]);
+  return g;
+}
+items.filter(it => it.tipo !== 'Mesa').forEach(it => {
+  const g = it.sector === 'L' ? sofa(it) : pufe(it);
+  g.traverse(o => { o.userData.itemId = it.id; if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  loungeGroups[it.id] = g;
+  scene.add(g);
+});
+
+// cadeiras e banquetas instanciadas
+const chairsMesh = new THREE.InstancedMesh(chairGeo, M.gold, chairs.length);
+chairs.forEach((c, i) => {
+  dummy.position.set(c.x, 0, c.z); dummy.rotation.set(0, c.ry, 0); dummy.updateMatrix();
+  chairsMesh.setMatrixAt(i, dummy.matrix);
+});
+chairsMesh.castShadow = true; scene.add(chairsMesh);
+const stoolsMesh = new THREE.InstancedMesh(stoolGeo, M.gold, stools.length);
+stools.forEach((s, i) => { dummy.position.set(s.x, 0, s.z); dummy.rotation.set(0, 0, 0); dummy.updateMatrix(); stoolsMesh.setMatrixAt(i, dummy.matrix); });
+stoolsMesh.castShadow = true; scene.add(stoolsMesh);
+
+// ---------- etiquetas numeradas ----------
+function badgeTexture(it, dim) {
+  const st = stOf(it);
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d');
+  g.globalAlpha = dim ? 0.22 : 1;
+  g.beginPath(); g.arc(128, 128, 116, 0, Math.PI * 2);
+  g.fillStyle = st === 'livre' ? SECTORS[it.sector].cor : ST_COR[st]; g.fill();
+  g.lineWidth = 12; g.strokeStyle = '#ffffff'; g.stroke();
+  g.fillStyle = '#ffffff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = `800 ${it.label.length >= 3 ? 100 : 124}px Montserrat, sans-serif`;
+  g.fillText(it.label, 128, 136);
+  if (st === 'vendida') {
+    g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = 14;
+    g.beginPath(); g.moveTo(52, 204); g.lineTo(204, 52); g.stroke();
+  }
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+  return tex;
+}
+const labelGroup = new THREE.Group(); scene.add(labelGroup);
+items.forEach(it => {
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ depthTest: false, transparent: true }));
+  sp.position.set(it.x, it.tipo === 'Mesa' ? 1.9 : 1.6, it.z);
+  sp.scale.setScalar(1.15);
+  sp.renderOrder = 10;
+  sp.userData.itemId = it.id;
+  it.sprite = sp;
+  labelGroup.add(sp);
+});
+
+// ---------- estado visual ----------
+let focusSector = null, onlyFree = false;
+const tmpC = new THREE.Color();
+function refreshItem(it) {
+  const st = stOf(it);
+  const dim = (focusSector && it.sector !== focusSector) || (onlyFree && st !== 'livre');
+  if (it.sprite.material.map) it.sprite.material.map.dispose();
+  it.sprite.material.map = badgeTexture(it, dim);
+  it.sprite.material.needsUpdate = true;
+  if (it.tipo === 'Mesa') {
+    tablesMesh.setColorAt(it.instance, tmpC.set(st === 'vendida' ? '#8d8d8d' : st === 'reservada' ? '#ffd9a3' : '#ffffff'));
+    ringsMesh.setColorAt(it.instance, tmpC.set(dim ? '#5a5a5a' : SECTORS[it.sector].cor));
+  }
+}
+function refreshAll() {
+  items.forEach(refreshItem);
+  tablesMesh.instanceColor.needsUpdate = true;
+  ringsMesh.instanceColor.needsUpdate = true;
+  updateStats();
+}
+
+const $ = id => document.getElementById(id);
+const legend = $('legend');
+function updateStats() {
+  const cnt = { livre: 0, reservada: 0, vendida: 0 }, lug = { livre: 0, reservada: 0, vendida: 0 };
+  items.forEach(it => { cnt[stOf(it)]++; lug[stOf(it)] += it.lugares; });
+  $('sDisp').textContent = cnt.livre; $('sRes').textContent = cnt.reservada; $('sVend').textContent = cnt.vendida;
+  const total = items.reduce((s, i) => s + i.lugares, 0);
+  $('sLug').textContent = `${lug.livre} de ${total} lugares livres · 200 mesas + 16 lounges`;
+  legend.querySelectorAll('li').forEach(li => {
+    const its = items.filter(i => i.sector === li.dataset.k);
+    const free = its.filter(i => stOf(i) === 'livre').length;
+    li.querySelector('small').textContent = `${its[0].label}–${its.at(-1).label} · ${free}/${its.length}`;
+  });
+}
+
+// ---------- UI ----------
+Object.entries(SECTORS).forEach(([k, s]) => {
+  const li = document.createElement('li'); li.dataset.k = k;
+  li.innerHTML = `<i style="background:${s.cor};border:1px solid rgba(255,255,255,.5)"></i>${s.nome}<small></small>`;
+  li.onclick = () => {
+    focusSector = focusSector === k ? null : k;
+    legend.querySelectorAll('li').forEach(x => x.classList.toggle('on', x.dataset.k === focusSector));
+    refreshAll();
+    if (focusSector) {
+      const its = items.filter(i => i.sector === k);
+      const cx = its.reduce((s, i) => s + i.x, 0) / its.length, cz = its.reduce((s, i) => s + i.z, 0) / its.length;
+      flyTo(new THREE.Vector3(cx, 0, cz), new THREE.Vector3(cx - 10, 24, cz + 20));
+    }
+  };
+  legend.appendChild(li);
+});
+
+$('tLabels').onchange = e => { labelGroup.visible = e.target.checked; };
+$('tFree').onchange = e => { onlyFree = e.target.checked; refreshAll(); };
+
+let selected = null;
+const info = $('info');
+function select(it) {
+  selected = it;
+  if (!it) { info.style.display = 'none'; pulseRing.visible = false; return; }
+  info.style.display = 'block';
+  $('iNum').textContent = it.tipo === 'Mesa' ? `Mesa ${it.label}` : it.label;
+  $('iMeta').textContent = `${it.tipo} · ${SECTORS[it.sector].nome} · ${it.lugares} lugares`;
+  info.querySelectorAll('[data-st]').forEach(b => b.classList.toggle('sel', b.dataset.st === stOf(it)));
+  pulseRing.position.set(it.x, 0.08, it.z); pulseRing.visible = true;
+}
+info.querySelectorAll('[data-st]').forEach(b => b.onclick = () => {
+  if (!selected) return;
+  if (b.dataset.st === 'livre') delete status[selected.id]; else status[selected.id] = b.dataset.st;
+  saveStatus(); refreshItem(selected);
+  tablesMesh.instanceColor.needsUpdate = true; ringsMesh.instanceColor.needsUpdate = true;
+  updateStats(); select(selected);
+});
+
+function findAndGo() {
+  const q = $('q').value.trim().toUpperCase().replace(/^MESA\s*/, '');
+  const it = byId[q];
+  if (!it) { $('q').style.borderColor = '#e05780'; return; }
+  $('q').style.borderColor = '';
+  flyTo(new THREE.Vector3(it.x, 0, it.z), new THREE.Vector3(it.x - 6, 11, it.z + 9));
+  select(it);
+}
+$('go').onclick = findAndGo;
+$('q').onkeydown = e => { if (e.key === 'Enter') findAndGo(); };
+
+$('reset').onclick = () => {
+  if (!confirm('Zerar o status de todas as mesas neste navegador?')) return;
+  status = {}; saveStatus(); refreshAll(); select(null);
+};
+
+$('eCsv').onclick = () => {
+  const rows = [['id', 'tipo', 'setor', 'lugares', 'status']];
+  items.forEach(it => rows.push([it.label, it.tipo, SECTORS[it.sector].nome, it.lugares, stOf(it)]));
+  download(new Blob(['﻿' + rows.map(r => r.join(';')).join('\n')], { type: 'text/csv' }), 'reveillon2027_mesas.csv');
+};
+function download(blob, name) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+// ---------- câmera ----------
+const VIEWS = {
+  iso:   { t: [0, 0, 2],  p: [-38, 52, 58] },
+  top:   { t: [0, 0, 0],  p: [0, 105, 0.01] },
+  stage: { t: [0, 0, 5],  p: [-2, 14, -30] },
+  entry: { t: [0, 0, -4], p: [-6, 12, 34] },
+};
+let anim = null;
+function flyTo(target, pos, ms = 900) {
+  anim = { t0: performance.now(), ms, ft: controls.target.clone(), fp: camera.position.clone(), tt: target, tp: pos };
+}
+document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => {
+  const v = VIEWS[b.dataset.view];
+  flyTo(new THREE.Vector3(...v.t), new THREE.Vector3(...v.p));
+});
+camera.position.set(...VIEWS.iso.p); controls.target.set(...VIEWS.iso.t);
+
+// ---------- seleção por clique ----------
+const pulseRing = new THREE.Mesh(new THREE.RingGeometry(1.2, 1.45, 48), new THREE.MeshBasicMaterial({ color: '#f3dd8a', transparent: true }));
+pulseRing.rotation.x = -Math.PI / 2; pulseRing.visible = false; scene.add(pulseRing);
+
+const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
+let downAt = null;
+renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
+  mouse.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(mouse, camera);
+  const pick = [labelGroup.visible ? labelGroup : null, tablesMesh, ...Object.values(loungeGroups)].filter(Boolean);
+  const hit = ray.intersectObjects(pick, true)[0];
+  if (!hit) { select(null); return; }
+  if (hit.object === tablesMesh) select(tablesOnly[hit.instanceId]);
+  else select(byId[(hit.object.userData.itemId || '').toUpperCase()] || null);
+});
+
+// ---------- exportações PNG ----------
+function renderToCanvas(cam, w, h) {
+  const prevSize = renderer.getSize(new THREE.Vector2()), prevPR = renderer.getPixelRatio();
+  renderer.setPixelRatio(1); renderer.setSize(w, h, false);
+  renderer.render(scene, cam);
+  const out = document.createElement('canvas'); out.width = w; out.height = h;
+  out.getContext('2d').drawImage(renderer.domElement, 0, 0);
+  renderer.setPixelRatio(prevPR); renderer.setSize(prevSize.x, prevSize.y);
+  return out;
+}
+function buildPlanCanvas(ppm = 90) {
+  const [x0, z0] = W(80, 140), [x1, z1] = W(1250, 1945);
+  const w = Math.round((x1 - x0) * ppm), h = Math.round((z1 - z0) * ppm);
+  const cam = new THREE.OrthographicCamera(x0, x1, -z0, -z1, 1, 200);
+  cam.position.set(0, 100, 0); cam.up.set(0, 0, -1); cam.lookAt(0, 0, 0);
+  const prevFog = scene.fog, prevVis = labelGroup.visible, prevPulse = pulseRing.visible;
+  scene.fog = null; labelGroup.visible = true; pulseRing.visible = false;
+  const img = renderToCanvas(cam, w, h);
+  scene.fog = prevFog; labelGroup.visible = prevVis; pulseRing.visible = prevPulse;
+  const k = ppm / 90, head = 420 * k, foot = 380 * k;
+  const c = document.createElement('canvas'); c.width = w; c.height = Math.round(h + head + foot);
+  const g = c.getContext('2d');
+  g.fillStyle = '#0b1020'; g.fillRect(0, 0, c.width, c.height);
+  g.drawImage(img, 0, head);
+  g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+  g.fillStyle = '#d4af37'; g.font = `600 ${54 * k}px Montserrat`; g.fillText('PRAIA HALL · PRAIA CLUBE', 110 * k, 140 * k);
+  g.fillStyle = '#f4f1e8'; g.font = `800 ${150 * k}px Montserrat`; g.fillText('Réveillon 2027', 100 * k, 300 * k);
+  g.fillStyle = '#a9aec0'; g.font = `400 ${46 * k}px Montserrat`;
+  g.fillText('Mapa de mesas · 200 mesas de 4 lugares + 16 lounges de 5 lugares · 880 lugares', 110 * k, 380 * k);
+  let lx = 110 * k, ly = head + h + 130 * k;
+  g.font = `600 ${44 * k}px Montserrat`;
+  Object.entries(SECTORS).forEach(([key, s], i) => {
+    if (i === 4) { lx = 110 * k; ly += 120 * k; }
+    const its = items.filter(it => it.sector === key);
+    g.fillStyle = s.cor; g.beginPath(); g.arc(lx + 28 * k, ly - 15 * k, 28 * k, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = '#fff'; g.lineWidth = 4 * k; g.stroke();
+    g.fillStyle = '#f4f1e8';
+    g.fillText(`${s.nome.replace('Setor ', '')}  ${its[0].label}–${its.at(-1).label}`, lx + 76 * k, ly);
+    lx += 905 * k;
+  });
+  return c;
+}
+$('ePlan').onclick = () => buildPlanCanvas().toBlob(b => download(b, 'reveillon2027_planta_numerada.png'));
+$('eView').onclick = () => {
+  const cam = camera.clone(); cam.aspect = 16 / 9; cam.updateProjectionMatrix();
+  const prevPulse = pulseRing.visible; pulseRing.visible = false;
+  renderToCanvas(cam, 3840, 2160).toBlob(b => download(b, 'reveillon2027_vista.png'));
+  pulseRing.visible = prevPulse;
+};
+window.__mapa = { buildPlanCanvas, renderToCanvas, camera, controls, VIEWS, flyTo, THREE, items, select };
+
+// ---------- loop ----------
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+function loop(now) {
+  if (anim) {
+    const k = Math.min(1, (now - anim.t0) / anim.ms), e = ease(k);
+    controls.target.lerpVectors(anim.ft, anim.tt, e);
+    camera.position.lerpVectors(anim.fp, anim.tp, e);
+    if (k >= 1) anim = null;
+  }
+  if (pulseRing.visible) pulseRing.material.opacity = 0.55 + 0.45 * Math.sin(now / 180);
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+}
+document.fonts.load('800 100px Montserrat').finally(() => { refreshAll(); window.__ready = true; requestAnimationFrame(loop); });
+</script>
+</body>
+</html>

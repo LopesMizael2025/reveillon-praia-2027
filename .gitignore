@@ -1,0 +1,10 @@
+# derivados da prancha original e das fotos (não publicar)
+circles.json
+tables_px.json
+detect.png
+grid.png
+drone_sheet.jpg
+crop_*.jpg
+__pycache__/
+detect.py
+grid.py
